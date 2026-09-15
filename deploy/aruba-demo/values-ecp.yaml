@@ -1,0 +1,35 @@
+# ECP gateway values for the Aruba demo stack.
+#
+# Both gateways in one cluster, ClusterIP only (reach them with kubectl
+# port-forward), authenticating real JWTs minted by the Aruba production IdP.
+#
+# The verification key is NOT in this file: install.sh fetches the realm's
+# RS256 signing key from the JWKS endpoint and passes it with
+# `--set-file auth.jwt.key=...`, so the key is never stale in git.
+
+gatewayGlobal:
+  enabled: true
+gatewayRegional:
+  enabled: true
+  # Must match the name of the Region CR the catalog publishes.
+  region: itbg-bergamo
+
+auth:
+  enabled: true
+  plugin: jwt
+  jwt:
+    # Aruba's realm signs with RS256 (the only `use: sig` key in its JWKS).
+    signingMethod: RS256
+    # NOTE: auth.jwt.issuer / auth.jwt.audience are deliberately absent. The
+    # v0.0.2-alpha gateway binary has no --jwt-issuer / --jwt-audience flag (it
+    # landed after the tag), so setting them here would be silently ignored.
+    # It costs nothing at this scale: the gateway trusts exactly one key, the
+    # cmp-new-apikey realm's own signing key, and a Keycloak realm signs for
+    # nobody else — so `iss` could only ever be that realm. What is enforced is
+    # the signature, the mandatory `exp`, and the RoleAssignment naming the
+    # token's `sub`. Add both once the stack moves past v0.0.2-alpha.
+  authz:
+    enabled: true
+    impl: cached
+    # The region catalog is tenant-less by spec, so SECA RBAC cannot govern it.
+    skipProviders: seca.region

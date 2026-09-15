@@ -1,0 +1,111 @@
+# NOTE: this is the client-cli embedded copy of deploy/aruba-demo/tenant.yaml.
+# It is embedded so the binary is self-contained; `--manifests-dir ..` reads the
+# originals from disk instead. Keep the two in sync when either changes.
+# Everything ONE tenant needs before Terraform can do anything, and nothing else:
+# its namespace, its SKU catalogs, and its own RBAC. Every object here is scoped to
+# a single tenant, so applying it can never disturb another one — which is what
+# makes seed-tenant.sh safe to hand to someone onboarding a new account.
+#
+# Nothing here is created by a chart: the SKU catalogs are operator-provisioned data
+# in a real deployment, and the Role/RoleAssignment are the tenant's own policy.
+# install.sh and seed-tenant.sh substitute the @PLACEHOLDERS@.
+#
+# The tenant namespace is hex(sha3-224("<tenant>")) — framework/backend/kubernetes
+# ComputeNamespace. It is created bare here only because these CRs are applied
+# straight to the API server; the gateway stamps its owner labels on first write.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "@TENANT_NS@"
+---
+# Storage SKU catalog. Identity is read back off the labels (StorageSKUFromCR);
+# the provider label encodes "/" as "_" because "/" is not legal in a label value.
+apiVersion: storage.v1.secapi.cloud/v1
+kind: StorageSKU
+metadata:
+  name: storage-standard
+  namespace: "@TENANT_NS@"
+  labels:
+    secapi.cloud/provider: seca.storage_v1
+    secapi.cloud/region: "@ARUBA_LOCATION@"
+    secapi.cloud/tenant: "@TENANT@"
+spec:
+  iops: 5000
+  minVolumeSize: 1
+  type: "local-durable"
+---
+# Compute SKU catalog. vCPU and RAM are matched EXACTLY against the embedded Aruba
+# flavor table (csp/aruba/pkg/adapter/skumap) — {1, 2} is CSO1A2, the smallest flavor
+# Aruba offers. A SKU no flavor matches sends the instance to `error` with
+# "no Aruba CloudServer flavor provides N vCPU / M GB RAM" rather than a bare 400.
+apiVersion: compute.v1.secapi.cloud/v1
+kind: InstanceSKU
+metadata:
+  name: compute-small
+  namespace: "@TENANT_NS@"
+  labels:
+    secapi.cloud/provider: seca.compute_v1
+    secapi.cloud/region: "@ARUBA_LOCATION@"
+    secapi.cloud/tenant: "@TENANT@"
+spec:
+  vCPU: 1
+  ram: 2
+---
+# Network SKU catalog. Nothing on the Aruba side consumes it — a VPC and a Subnet have
+# no bandwidth or SKU field — but a SECA Network requires a skuRef, so the catalog has
+# to publish one for a network to be creatable at all.
+apiVersion: network.v1.secapi.cloud/v1
+kind: NetworkSKU
+metadata:
+  name: network-standard
+  namespace: "@TENANT_NS@"
+  labels:
+    secapi.cloud/provider: seca.network_v1
+    secapi.cloud/region: "@ARUBA_LOCATION@"
+    secapi.cloud/tenant: "@TENANT@"
+spec:
+  bandwidth: 1000
+  packets: 1000000
+---
+# RBAC. Roles are never carried by the token: the caller's entitlements come
+# entirely from a RoleAssignment in the tenant namespace.
+apiVersion: authorization.v1.secapi.cloud/v1
+kind: Role
+metadata:
+  name: demo-admin
+  namespace: "@TENANT_NS@"
+spec:
+  permissions:
+    - provider: seca.region
+      resources: ["*"]
+      verb: ["*"]
+    - provider: seca.authorization
+      resources: ["*"]
+      verb: ["*"]
+    - provider: seca.storage
+      resources: ["*"]
+      verb: ["*"]
+    - provider: seca.workspace
+      resources: ["*"]
+      verb: ["*"]
+    - provider: seca.network
+      resources: ["*"]
+      verb: ["*"]
+    - provider: seca.compute
+      resources: ["*"]
+      verb: ["*"]
+---
+# subs is the JWT `sub` claim, which for a Keycloak client_credentials token is
+# the service account's user id — install.sh mints a token and reads it off,
+# so the grant names exactly the API client Terraform authenticates with.
+apiVersion: authorization.v1.secapi.cloud/v1
+kind: RoleAssignment
+metadata:
+  name: ra-demo-admin
+  namespace: "@TENANT_NS@"
+spec:
+  subs: ["@SUBJECT@"]
+  roles: ["demo-admin"]
+  scopes:
+    - tenants: ["@TENANT@"]

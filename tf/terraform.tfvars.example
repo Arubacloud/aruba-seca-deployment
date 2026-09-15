@@ -1,0 +1,13 @@
+# cp terraform.tfvars.example terraform.tfvars, then fill in the Aruba API client.
+# terraform.tfvars is gitignored — keep the secret out of the repo.
+client_id     = "<aruba-api-client-id>"
+client_secret = "<aruba-api-client-secret>"
+
+# Defaults already match the demo stack; override only if you changed install.sh.
+# tenant          = "ARU-348095"
+# region          = "itbg-bergamo"   # the Region CR's name, NOT the Aruba location
+# global_endpoint = "http://localhost:3000"
+
+# Replace this to actually be able to log into the VM. Aruba validates the format,
+# so it has to be a real public key.
+# ssh_public_key = "ssh-ed25519 AAAA... you@host"

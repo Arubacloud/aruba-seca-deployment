@@ -1,0 +1,6 @@
+# built binaries
+aruba-demo
+client-cli
+
+# kubeconfigs downloaded from the KaaS cluster
+*.kubeconfig

@@ -1,0 +1,42 @@
+# NOTE: this is the client-cli embedded copy of deploy/aruba-demo/catalog.yaml.
+# It is embedded so the binary is self-contained; `--manifests-dir ..` reads the
+# originals from disk instead. Keep the two in sync when either changes.
+# The region catalog — the ONE cluster-scoped, tenant-independent thing the demo
+# needs, so it lives apart from tenant.yaml on purpose.
+#
+# Every tenant on this cluster shares this object. Re-applying it with a different
+# REGIONAL_URL re-points the regional API for all of them at once, which is why
+# seed-tenant.sh does not touch this file: onboarding a tenant must not be able to
+# reach cluster-wide state. install.sh owns it and substitutes the @PLACEHOLDERS@.
+#
+# Nothing here is created by a chart — a region catalog is operator-provisioned
+# data in a real deployment.
+---
+# The provider URLs are what a SECA client dials for the The provider URLs are what a SECA client dials for the
+# regional API after it resolves the region, so they must be reachable FROM THE
+# CLIENT, not from inside the cluster — with ClusterIP services that means the
+# address of the `kubectl port-forward` onto the regional gateway.
+apiVersion: v1.secapi.cloud/v1
+kind: Region
+metadata:
+  name: "@REGION@"
+spec:
+  # The Aruba spelling. Nothing cross-checks a resource's zone against this list, but
+  # the aruba plugin hardcodes "ITBG-1" as a block storage's datacenter and an Instance
+  # whose zone does not match its boot volume's is refused — so advertise what works.
+  availableZones:
+    - "ITBG-1"
+    - "ITBG-2"
+  providers:
+    - name: "seca.storage"
+      url: "@REGIONAL_URL@/providers/seca.storage"
+      version: "v1"
+    - name: "seca.workspace"
+      url: "@REGIONAL_URL@/providers/seca.workspace"
+      version: "v1"
+    - name: "seca.network"
+      url: "@REGIONAL_URL@/providers/seca.network"
+      version: "v1"
+    - name: "seca.compute"
+      url: "@REGIONAL_URL@/providers/seca.compute"
+      version: "v1"
